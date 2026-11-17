@@ -1,5 +1,6 @@
 extends Control
 const Advisor=preload("res://advisor.gd")
+var expedition
 var battle_selected_line=-1
 var map_full=false
 var guide_folded=false
@@ -57,6 +58,7 @@ const TIPS=[
 ["Revenir quand vous voulez","Le bouton Aide reste accessible pendant la partie. La partie est sauvegardée après les actions et les tours. Terminer le tour fait jouer les cinq adversaires. Consultez les conflits avant de passer !"]]
 func _ready():
 	get_tree().auto_accept_quit=false
+	expedition=preload("res://expedition.gd").new(self)
 	load_preferences()
 	audio=Node.new();audio.set_script(preload("res://ambience.gd"));add_child(audio)
 	var prefs=ConfigFile.new()
@@ -94,6 +96,9 @@ func _ready():
 	if "--test-settings" in args:show_settings()
 	if "--test-wide" in args:game.new_game(3,42);game.s.setup=false;selected=9;map_full=true;show_map()
 	if "--capture" in args:call_deferred("capture_test")
+func _exit_tree():
+	if expedition:expedition.h=null;expedition.g=null
+	expedition=null
 func _notification(what):
 	if what==NOTIFICATION_WM_CLOSE_REQUEST or what==NOTIFICATION_WM_GO_BACK_REQUEST:
 		if is_instance_valid(modal):close_modal()
@@ -150,7 +155,7 @@ func show_menu():
 	panel(layer,Rect2(70,100,660,610),Color(0.035,0.07,0.11,0.95))
 	label(layer,"LA QUÊTE\nDES CRISTAUX",Rect2(110,140,580,145),52,GOLD)
 	label(layer,"Six peuples. Un monde à conquérir.",Rect2(112,300,570,45),24)
-	label(layer,"VERSION 0.6 · VOS DÉCISIONS PRENNENT VIE",Rect2(112,350,570,35),17,MUTED)
+	label(layer,"VERSION 0.7 · VOTRE PREMIÈRE EXPÉDITION",Rect2(112,350,570,35),17,MUTED)
 	button(layer,"Nouvelle partie",Rect2(112,410,530,62),show_factions)
 	button(layer,"Reprendre la partie",Rect2(112,488,530,62),func():
 		if game.load_game():
@@ -192,6 +197,7 @@ func show_setup():
 	label(layer,"Premier chapitre : préparer un éclaireur et rapporter un cristal.",Rect2(740,565,620,38),18,MUTED)
 	transition_in()
 func show_map():
+	if expedition.active() or (not guided() and not coach_paused()):expedition.draw_map();return
 	screen="map";clear()
 	if game.s.is_empty():show_menu();return
 	if guided() and int(game.s.onboarding.step) in [3,7]:destination=guide_target()
@@ -255,6 +261,7 @@ func show_map():
 	if int(game.s.winner)>=0:show_victory()
 	elif not game.s.factions[game.s.human].alive:message="Votre village est tombé. Vous pouvez suivre la fin de la partie."
 func pick_cell(p:Vector2i):
+	if expedition.active():expedition.pick(p);return
 	if coach_paused():
 		if coach_phase() not in [3,6]:return
 		if p!=coach_target():message="Touchez la case entourée en doré, puis Déplacer ici.";show_map();return
@@ -292,6 +299,7 @@ func act(fn:Callable,confirmed:bool=false):
 	elif screen=="village":show_village()
 	else:show_map()
 func end_turn():
+	if expedition.active():expedition.end_turn();return
 	var from_village=screen=="village"
 	if coach_paused():
 		if coach_phase()!=10:show_coach_step();return
@@ -314,7 +322,7 @@ func _process(delta):
 	if is_instance_valid(deploy_price):update_deploy_price()
 	if screen not in ["map","battle","village"] or game.s.is_empty() or game.s.setup or paused or is_instance_valid(modal):return
 	if game.s.winner>=0:return
-	if guided() or coach_paused():return
+	if expedition.active() or guided() or coach_paused():return
 	var pending=game.pending_human()
 	if pending>=0:
 		bid=pending;show_battle()
@@ -553,6 +561,13 @@ func rich(parent:Control,text:String,r:Rect2):
 	rt.text=text;parent.add_child(rt);rt.position=r.position;rt.size=r.size
 	return rt
 func show_help():
+	if expedition.active():
+		var m=overlay("Votre première expédition")
+		var c=expedition.copy()
+		rich(m,c[0]+"\n\n"+c[1]+"\n\nLe cristal doit revenir au village. Les autres royaumes attendent pendant cet apprentissage. Ensuite, leurs tours reprennent normalement.",Rect2(205,165,1000,360))
+		button(m,"Reprendre mon action",Rect2(205,620,480,60),close_modal)
+		button(m,"Jouer librement",Rect2(730,620,480,60),func():game.s.expedition.active=false;close_modal();game.save_game();show_map())
+		return
 	if coach_active() and (guided() or coach_paused()):show_coach_step();return
 	var m=overlay("Aide et règles de cette première version")
 	button(m,"Lire les règles",Rect2(205,140,490,55),func():tutorial_step=0;show_tutorial())
@@ -658,7 +673,7 @@ func guide_copy()->Array:
 	var ob=game.s.onboarding;var u=game.s.units[ob.uid]
 	match int(ob.step):
 		0:return ["1 / 6 · Voici votre village", "C’est votre point de départ et le lieu où rapporter les cristaux. Les adversaires attendent pendant cet apprentissage."]
-		1:return ["2 / 6 · Choisissez votre éclaireur", "Touchez « Éclaireur 1 » dans le panneau à droite. C’est le pion qui ira chercher votre premier cristal."]
+		1:return ["2 / 6 · Choisissez votre éclaireur", "Touchez « Éclaireur 1 » dans la liste des expéditions. C’est le pion qui ira chercher votre premier cristal."]
 		2:return ["3 / 6 · Choisissez la destination", "Touchez la case entourée en doré. Le tracé vous conduit vers le cristal violet, en plusieurs tours si nécessaire."]
 		3:return ["3 / 6 · Confirmez le déplacement", "La case est sélectionnée. Touchez maintenant « Déplacer ici », à droite, pour envoyer votre éclaireur."]
 		4:return ["4 / 6 · Vous avez pris un cristal !", "Il faut le rapporter au village. Votre éclaireur doit d’abord attendre un tour : touchez « Terminer le tour »."]
@@ -685,6 +700,7 @@ func draw_guide():
 		var sb=style(Color(0,0,0,0),GOLD);sb.set_border_width_all(3)
 		border.add_theme_stylebox_override("panel",sb);border.mouse_filter=Control.MOUSE_FILTER_IGNORE;layer.add_child(border)
 func move_selected(confirmed:bool=false):
+	if expedition.active():expedition.primary();return
 	if coach_paused() and coach_phase() not in [4,7]:show_coach_step();return
 	if guided() and int(game.s.onboarding.step) not in [3,7]:return
 	if not game.move_unit(selected,destination):show_notice("Déplacement impossible",game.error);return
@@ -962,6 +978,8 @@ func draw_battle_coach(b:Dictionary,si:int):
 	panel(layer,Rect2(28,654,1384,38),Color("203241"));label(layer,text,Rect2(40,659,1350,32),17,GOLD)
 
 func show_village():
+	if not game.s.is_empty() and game.s.setup:expedition.draw_village();return
+	if expedition.active():expedition.draw_map();return
 	if game.s.is_empty():show_menu();return
 	screen="village";clear()
 	var f=int(game.s.human)
@@ -1004,6 +1022,7 @@ func show_village():
 	transition_in()
 	if int(game.s.winner)>=0:show_victory()
 func start_first_chapter():
+	expedition.begin();return
 	game.s["chapter_mode"]=true
 	game.s.discovery={"active":true,"phase":11,"combat_intro":false,"first_attack":false}
 	guide_folded=false
@@ -1015,6 +1034,7 @@ func enter_world():
 	if selected<0:selected=int(game.s.human)*3
 	show_map();frame_expedition();transition_in()
 func frame_expedition(animated:bool=false):
+	if expedition.active():return
 	if not is_instance_valid(mapview):return
 	var p=Vector2(game.pos(game.s.units[selected])) if selected>=0 else Vector2(game.BASES[game.s.human])
 	if guided():
@@ -1101,7 +1121,7 @@ func show_attack_preview(si:int,li:int,hero_id:int=-1,spell:int=0,target:int=-1)
 		var chooser=overlay("Choisissez la ligne adverse")
 		for t in range(3):button(chooser,["Infanterie","Cavalerie","Héros"][t],Rect2(205,200+t*120,1000,80),func():close_modal();show_attack_preview(si,li,hero_id,spell,t),b.sides[1-si].lines[t].hp<=0)
 		return
-	var result=Advisor.attack_preview(game,bid,si,li,spell,target)
+	var result=Advisor.attack_preview(game,bid,si,li,spell,target,hero_id)
 	if not result.ok:show_notice("Attaque indisponible",result.error);return
 	var m=overlay("Votre attaque · "+["Infanterie","Cavalerie","Héros"][li])
 	label(m,"Cible : "+result.target+" adverse",Rect2(205,150,1000,45),26,GOLD)

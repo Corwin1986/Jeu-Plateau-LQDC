@@ -4,7 +4,7 @@ config/name="La Quête des Cristaux"
 config/icon="res://icon.svg"
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
-config/version="0.6.0"
+config/version="0.7.0"
 [display]
 window/size/viewport_width=1440
 window/size/viewport_height=810

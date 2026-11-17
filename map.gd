@@ -87,11 +87,11 @@ func _draw():
 			var canonical=Vector2(sqrt(3.0)*(p.x+p.y/2.0),1.5*p.y)*21+v*21
 			uv.append((canonical+Vector2(345,304))/Vector2(690,608))
 		draw_polygon(poly,PackedColorArray([Color.WHITE]),uv,tex)
-		poly.append(poly[0]);draw_polyline(poly,Color(0.85,0.8,0.65,0.22),1)
+		poly.append(poly[0]);draw_polyline(poly,Color(0.85,0.8,0.65,0.09),1)
 		if host.selected>=0:
 			var u=g.s.units[host.selected]
 			if g.distance(g.pos(u),p)<=int(u.mp) and u.battle<0 and int(u.locked)<int(g.s.factions[u.f].turns) and g.s.turn==g.s.human:
-				draw_polyline(poly,Color(0.6,0.95,0.8,0.55),1.2)
+				draw_polyline(poly,Color(0.6,0.95,0.8,0.18),1.2)
 		if p==target:draw_polyline(poly,Color("ffe7a1"),3)
 		if c.cache:
 			draw_circle(at,6*z,Color("352418"));draw_arc(at,5*z,0,TAU,16,Color("f7cf75"),2);draw_circle(at,2*z,Color("fff1b3"))
@@ -105,7 +105,7 @@ func _draw():
 			for n in range(7):shimmer.append(at+Vector2((n-3)*2*z,sin(clock*1.3+n*0.7+c.q)*1.2*z))
 			draw_polyline(shimmer,Color(0.65,0.94,1,0.14+0.07*sin(clock+c.r)),1.0)
 	# Route previews show exact path, including the stop at a crystal.
-	var goal=host.guide_target() if host.guided() else (host.coach_target() if host.coach_paused() else target)
+	var goal=host.expedition.target() if host.expedition.active() else (host.guide_target() if host.guided() else (host.coach_target() if host.coach_paused() else target))
 	if host.selected>=0 and g.s.cells.has(g.key(goal)):
 		var u=g.s.units[host.selected];var route=g.path(g.pos(u),goal);var last=point(g.pos(u));var steps=0
 		for p in route:
@@ -139,7 +139,7 @@ func _draw():
 		if u.battle>=0:draw_line(at+Vector2(-9,-50)*z,at+Vector2(9,-32)*z,Color("ff7869"),3);draw_line(at+Vector2(9,-50)*z,at+Vector2(-9,-32)*z,Color("ff7869"),3)
 		if int(u.locked)>=int(g.s.factions[u.f].turns):draw_arc(at,19*z,0,TAU,16,Color("e5aa55"),2)
 		if not u.crystals.is_empty():crystal(at+Vector2(-13,-32)*z,0.5*z)
-	if host.guided() or host.coach_paused():
+	if host.expedition.active() or host.guided() or host.coach_paused():
 		var at=point(goal);draw_arc(at,rr+7,0,TAU,32,Color("ffe6a0"),3)
 	var home=point(g.BASES[g.s.human])
 	var tag=Vector2(clampf(home.x-72,8,size.x-152),clampf(home.y+47*z if home.y<size.y*0.65 else home.y-100*z,8,size.y-32))
